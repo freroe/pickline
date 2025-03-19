@@ -1,0 +1,12 @@
+[package]
+name = "pickline"
+authors = ["Frederik Thorøe <github.com/freroe>"]
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.97"
+clap = { version = "4.5.32", features = ["cargo"] }
+#crossterm = { version = "0.28.1", features = ["use-dev-tty"] }
+crossterm = { git = "https://github.com/aschey/crossterm.git", branch = "fix/use-tty" }
+regex = "1.11.1"
