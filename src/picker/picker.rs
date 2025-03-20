@@ -217,6 +217,7 @@ impl Picker {
         };
 
         self.pages = Self::paginate(indexes, self.page_size);
+        self.page_idx = 0;
         self.filter = Some(filter);
         self.align_cursor()
     }
