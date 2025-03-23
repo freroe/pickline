@@ -72,11 +72,6 @@ pub struct Picker {
 
 impl Picker {
     pub fn new(lines: Vec<String>, opts: Options) -> Self {
-        let page_size = match opts.page_size {
-            PageSizeOption::Auto => todo!(),
-            PageSizeOption::Value(n) => n
-        };
-
         let lines = lines.iter().map(|l| Line::new(l, opts.delimiter.clone())).collect::<Vec<Line>>();
 
         let mut initial_index = 0;

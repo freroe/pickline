@@ -42,7 +42,13 @@ impl Ui {
         let position = cursor::position().unwrap();
 
         let page_size = match opts.page_size {
-            PageSizeOption::Auto => todo!(),
+            PageSizeOption::Auto => {
+                if picker.lines().len() <= term_size.1 as usize {
+                    picker.lines().len()
+                } else {
+                    term_size.1 as usize - 4
+                }
+            },
             PageSizeOption::Value(n) => n
         };
 
