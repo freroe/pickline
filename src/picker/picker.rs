@@ -1,5 +1,4 @@
-use crate::picker::options::{ColumnRange, Options, PageSizeOption};
-use clap::builder::TypedValueParser;
+use crate::picker::options::{ColumnRange, Options};
 use regex::Regex;
 
 // todo: consider having two different types of lines, representing simple and columnar data
@@ -73,20 +72,6 @@ pub struct Picker {
 impl Picker {
     pub fn new(lines: Vec<String>, opts: Options) -> Self {
         let lines = lines.iter().map(|l| Line::new(l, opts.delimiter.clone())).collect::<Vec<Line>>();
-
-        let mut initial_index = 0;
-        if let Some(selection) = &opts.selection_column {
-            let selected_index = lines.iter().enumerate().find_map(|(i, l)| {
-                match l.matches_regex(&Regex::new(selection.1.as_str()).unwrap(), selection.0) {
-                    true => Some(i),
-                    false => None
-                }
-            });
-
-            if selected_index.is_some() {
-                initial_index = selected_index.unwrap();
-            }
-        }
 
         Self {
             lines,
