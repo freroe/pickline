@@ -19,7 +19,7 @@ fn main() {
             Arg::new("page_size")
                 .long("page-size")
                 .help("a number or 'auto' to have the pages fit the terminal size")
-                .default_value("8")
+                .default_value("auto")
         )
         .arg(
             Arg::new("alphabet")
