@@ -1,22 +1,38 @@
-use std::cmp::max;
+use std::cmp::{max, min};
+use std::collections::HashMap;
 use crossterm::terminal::ClearType;
 use crossterm::{cursor, style, terminal, QueueableCommand};
 use anyhow::Result;
 
 use crate::picker::picker::Picker;
-use crate::picker::options::Options;
+use crate::picker::options::{Options, PageSizeOption};
 use std::io::Write;
 use std::str::FromStr;
 use crossterm::style::Stylize;
+use regex::Regex;
 use crate::picker::modes::Mode;
-use crate::picker::modes::Mode::Filter;
 
 pub struct Ui {
+    cursor: usize,
+    mode: Mode,
+
+    // pagination
+    page: usize,
+    page_size: usize,
+    pages: Vec<Vec<usize>>,
+
+    // hinting
+    hints: Option<HashMap<usize, String>>,
+    tape: Option<String>,
+
+    // terminal window
     scroll_off: Option<u16>,
     top: u16,
     width: u16,
     bar: u16,
     col_widths: Vec<usize>,
+
+    // options
     opts: Options,
 }
 
@@ -25,7 +41,11 @@ impl Ui {
         let term_size = terminal::size().unwrap();
         let position = cursor::position().unwrap();
 
-        let page_size = picker.page().unwrap().len();
+        let page_size = match opts.page_size {
+            PageSizeOption::Auto => todo!(),
+            PageSizeOption::Value(n) => n
+        };
+
         let win_size = page_size + 2;
         let scroll_off = (win_size as u16).checked_sub(term_size.1 - position.1);
 
@@ -38,7 +58,34 @@ impl Ui {
             }
         }
 
+        let mut initial_index = 0;
+        if let Some(selection) = &opts.selection_column {
+            let selected_index = picker.lines().iter().enumerate().find_map(|(i, l)| {
+                match l.matches_regex(&Regex::new(selection.1.as_str()).unwrap(), selection.0) {
+                    true => Some(i),
+                    false => None
+                }
+            });
+
+            if selected_index.is_some() {
+                initial_index = selected_index.unwrap();
+            }
+        }
+
+
         Ui {
+            mode: Mode::Normal,
+            cursor: initial_index,
+
+            // pagination
+            page: 0,
+            page_size,
+            pages: Self::calc_pages((0..picker.lines().len()).collect(), page_size),
+
+            // hinting
+            hints: None,
+            tape: None,
+
             scroll_off,
             width: term_size.0,
             top: position.1 - scroll_off.unwrap_or(0),
@@ -78,7 +125,7 @@ impl Ui {
         w.queue(cursor::MoveTo(0, self.top))?
             .queue(terminal::Clear(ClearType::FromCursorDown))?;
 
-        if let Some(page) = picker.page() {
+        if let Some(page) = self.pages.get(self.page) {
             for (page_lines_idx, all_lines_idx) in page.iter().enumerate() {
                 self.render_line(page_lines_idx, *all_lines_idx, w, picker)?;
             }
@@ -87,18 +134,18 @@ impl Ui {
         w.queue(cursor::MoveTo(0, self.bar))?
             .queue(terminal::Clear(ClearType::CurrentLine))?;
 
-        if picker.mode() == Filter || picker.filter_text().len() > 0 {
+        if self.mode() == Mode::Filter || picker.filter_text().len() > 0 {
             let filter_text = format!("filter:{}", picker.filter_text());
-            let style_attr = match picker.mode() {
-                Filter => style::Attribute::Reset,
+            let style_attr = match self.mode() {
+                Mode::Filter => style::Attribute::Reset,
                 _ => style::Attribute::Dim,
             };
 
             w.queue(style::PrintStyledContent(filter_text.attribute(style_attr)))?;
         }
 
-        if picker.num_pages() > 1 {
-            let pagination_text = format!("({}/{})", picker.current_page() + 1, picker.num_pages());
+        if self.num_pages() > 1 {
+            let pagination_text = format!("({}/{})", self.current_page() + 1, self.num_pages());
             let pagination_len = pagination_text.len() as u16;
 
             let styled = pagination_text.attribute(style::Attribute::Dim);
@@ -111,22 +158,22 @@ impl Ui {
         Ok(())
     }
 
-    fn render_line(&mut self, page_lines_idx: usize, all_lines_idx: usize, w: &mut impl Write, picker: &Picker) -> Result<()> {
+    fn render_line(&self, page_lines_idx: usize, all_lines_idx: usize, w: &mut impl Write, picker: &Picker) -> Result<()> {
         // todo: should this really be as a ref and should we not just pass the line struct
         let cols = picker.lines().get(all_lines_idx).unwrap().display(&self.opts.display_columns);
 
         // todo: maybe only clear lines that need to change
         w.queue(terminal::Clear(ClearType::CurrentLine))?;
 
-        match picker.mode() {
+        match self.mode() {
             Mode::Hint => {
-                match picker.get_hint(page_lines_idx) {
+                match self.get_hint(page_lines_idx) {
                     Some(hint) => self.render_hinted_line(cols, hint, w)?,
                     None => self.render_normal_line(cols, false, w)?
                 }
             },
             _ => {
-                let selected = page_lines_idx == picker.current_index();
+                let selected = page_lines_idx == self.cursor;
                 self.render_normal_line(cols, selected, w)?;
             },
         };
@@ -136,7 +183,7 @@ impl Ui {
         Ok(())
     }
 
-    fn render_normal_line(&mut self, cols: Vec<String>, selected: bool, w: &mut impl Write) -> Result<()> {
+    fn render_normal_line(&self, cols: Vec<String>, selected: bool, w: &mut impl Write) -> Result<()> {
         if selected {
             w.queue(style::SetForegroundColor(
                 style::Color::from_str("green").unwrap(),
@@ -154,7 +201,7 @@ impl Ui {
         Ok(())
     }
 
-    fn render_hinted_line(&mut self, cols: Vec<String>, hint: String, w: &mut impl Write) -> Result<()> {
+    fn render_hinted_line(&self, cols: Vec<String>, hint: String, w: &mut impl Write) -> Result<()> {
         // first print the whole line
         self.print_text(cols, w)?;
 
@@ -167,7 +214,7 @@ impl Ui {
         Ok(())
     }
 
-    fn print_text(&mut self, cols: Vec<String>, w: &mut impl Write) -> Result<()> {
+    fn print_text(&self, cols: Vec<String>, w: &mut impl Write) -> Result<()> {
         let mut position = 2;
         for (i, col) in cols.iter().enumerate() {
             w.queue(cursor::MoveToColumn(position))?
@@ -177,5 +224,175 @@ impl Ui {
         }
 
         Ok(())
+    }
+
+    // todo: use this more consistently, to align states between modes
+    pub fn change_mode(&mut self, mode: Mode) {
+        match (self.mode.clone(), mode.clone()) {
+            (Mode::Normal, Mode::Hint) => {
+                self.hints = self.calculate_hints(self.opts.hint_alphabet.chars().collect());
+                self.tape = Some(String::new());
+            }
+            (Mode::Hint, Mode::Normal) => {
+                self.hints = None;
+                self.tape = None;
+            }
+            _ => {}
+        }
+
+        self.mode = mode
+    }
+
+    pub fn mode(&self) -> Mode {
+        self.mode.clone()
+    }
+
+    pub fn set_cursor(&mut self, i: usize) {
+        self.cursor = i;
+    }
+
+    fn align_cursor(&mut self) {
+        if let Some(page) = self.page() {
+            self.cursor = min(page.len() - 1, self.cursor);
+        } else {
+            self.cursor = 0;
+        }
+    }
+
+    pub fn line_under_cursor(&self) -> Option<usize> {
+        if let Some(page) = self.page() {
+            return page.get(self.cursor).map(|i| i.clone())
+        };
+
+        None
+    }
+
+    pub fn move_cursor_up(&mut self) {
+        self.cursor = Self::saturating_decrement(self.cursor);
+    }
+
+    pub fn move_cursor_down(&mut self) {
+        if let Some(page) = self.page() {
+            self.cursor = Self::increment_to_max(self.cursor, min(page.len() - 1, self.page_size - 1));
+        }
+    }
+
+    pub fn paginate(&mut self, indexes: Vec<usize>) {
+        self.pages = Self::calc_pages(indexes, self.page_size);
+
+        self.page = 0;
+        self.align_cursor();
+    }
+
+    pub fn previous_page(&mut self) {
+        self.page = Self::saturating_decrement(self.page);
+        self.align_cursor()
+    }
+
+    pub fn next_page(&mut self) {
+        self.page = Self::increment_to_max(self.page, self.num_pages().saturating_sub(1));
+        self.align_cursor()
+    }
+
+    pub fn page(&self) -> Option<&Vec<usize>> {
+        self.pages.get(self.page)
+    }
+
+    pub fn num_pages(&self) -> usize {
+        self.pages.len()
+    }
+
+    pub fn current_page(&self) -> usize {
+        self.page
+    }
+
+    fn calc_pages(indexes: Vec<usize>, page_size: usize) -> Vec<Vec<usize>> {
+        indexes.chunks(page_size).map(|c| c.to_vec()).collect()
+    }
+
+    pub fn tape(&self) -> String {
+        self.tape.clone().unwrap_or_default()
+    }
+
+    pub fn match_hint(&mut self, tape: String) -> Option<usize> {
+        let Some(map) = &self.hints else {
+            return None
+        };
+
+        let mut valid_tape = false;
+        for (idx, hint) in map {
+            if hint.contains(&tape) {
+                valid_tape = true;
+
+                if *hint == tape {
+                    return Some(*idx)
+                }
+            }
+        }
+
+        if valid_tape {
+            self.tape = Some(tape);
+        }
+
+        None
+    }
+
+    pub fn get_hint(&self, i: usize) -> Option<String> {
+        let Some(map) = &self.hints else {
+            return None
+        };
+
+        map.get(&i).cloned()
+    }
+
+    // todo: think about making hints non deterministic to prevent growing reliant on order
+    fn calculate_hints(&mut self, alphabet: Vec<char>) -> Option<HashMap<usize, String>> {
+        let Some(indexes) = self.page() else {
+            return None
+        };
+
+        let mut map = HashMap::with_capacity(indexes.len());
+
+        // minimum length required for uniqueness
+        let min_length = (indexes.len() as f64).log(alphabet.len() as f64).ceil() as usize;
+
+        // total possible combinations at this length
+        let total_combinations = alphabet.len().pow(min_length as u32);
+
+        // ideal spacing between selected hints
+        let spacing = total_combinations / indexes.len();
+
+        for i in 0..indexes.len() {
+            let index = (i * spacing) % total_combinations;
+            let hint = Self::index_to_hint(index, alphabet.as_ref(), min_length);
+
+            map.insert(i, hint);
+        }
+
+        Some(map)
+    }
+
+    fn index_to_hint(index: usize, alphabet: &[char], length: usize) -> String {
+        let base = alphabet.len();
+        let mut result = String::with_capacity(length);
+        let mut remaining = index;
+
+        // Convert index to a base-N number where N is alphabet length
+        for _ in 0..length {
+            let digit = remaining % base;
+            remaining /= base;
+            result.push(alphabet[digit]);
+        }
+
+        // Reverse since we built it in reverse order
+        result.chars().rev().collect()
+    }
+
+    fn saturating_decrement(n: usize) -> usize {
+        n.saturating_sub(1)
+    }
+
+    fn increment_to_max(n: usize, max: usize) -> usize {
+        min(n + 1, max)
     }
 }

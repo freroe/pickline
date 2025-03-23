@@ -85,7 +85,7 @@ fn run(opts: Options) -> Result<Option<String>, Box<dyn Error>> {
 
         let key_code = next_keycode()?;
 
-        let command = match picker.mode() {
+        let command = match ui.mode() {
             Mode::Normal => {
                match key_code {
                    KeyCode::Enter => Some(Command::Select),
@@ -100,7 +100,7 @@ fn run(opts: Options) -> Result<Option<String>, Box<dyn Error>> {
                }
             }
             Mode::Hint => {
-                let mut tape = picker.tape();
+                let mut tape = ui.tape();
 
                 match key_code {
                     KeyCode::Esc => Some(Command::EnterMode(Mode::Normal)),
@@ -137,20 +137,31 @@ fn run(opts: Options) -> Result<Option<String>, Box<dyn Error>> {
 
         if let Some(command) = command {
             match command {
-                Command::EnterMode(mode) => picker.change_mode(mode),
-                Command::MoveUp => picker.move_cursor_up(),
-                Command::MoveDown => picker.move_cursor_down(),
-                Command::PreviousPage => picker.previous_page(),
-                Command::NextPage => picker.next_page(),
-                Command::Filter(s) => picker.apply_filter(s),
+                Command::EnterMode(mode) => ui.change_mode(mode),
+                Command::MoveUp => ui.move_cursor_up(),
+                Command::MoveDown => ui.move_cursor_down(),
+                Command::PreviousPage => ui.previous_page(),
+                Command::NextPage => ui.next_page(),
+                Command::Filter(s) => {
+                    let visible = picker.apply_filter(s);
+                    ui.paginate(visible);
+                },
                 Command::Hint(s) => {
-                    if picker.match_hint(s) {
-                        picker.select();
-                        break;
+                    if let Some(m) = ui.match_hint(s) {
+                        ui.set_cursor(m);
+
+                        if let Some(choice) = ui.line_under_cursor() {
+                            picker.select(choice);
+                            break;
+                        }
+
                     }
                 },
                 Command::Select => {
-                    picker.select();
+                    if let Some(choice) = ui.line_under_cursor() {
+                        picker.select(choice)
+                    }
+
                     break;
                 },
                 Command::Exit => break,
