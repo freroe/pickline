@@ -67,11 +67,15 @@ fn main() {
     match run(opts.unwrap()) {
         Err(_) => panic!("error oh no real bad"),
         Ok(None) => (),
-        Ok(Some(line)) => println!("{}", line),
+        Ok(Some(lines)) => {
+            for l in lines {
+                println!("{}", l);
+            }
+        },
     }
 }
 
-fn run(opts: Options) -> Result<Option<String>, Box<dyn Error>> {
+fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
     let lines = io::stdin().lines();
 
     let mut w = io::stderr();
@@ -88,11 +92,13 @@ fn run(opts: Options) -> Result<Option<String>, Box<dyn Error>> {
         let command = match ui.mode() {
             Mode::Normal => {
                match key_code {
-                   KeyCode::Enter => Some(Command::Select),
+                   KeyCode::Enter => Some(Command::SelectAndExit),
+                   KeyCode::Char(' ') => Some(Command::ToggleSelection),
                    KeyCode::Char('j') | KeyCode::Down => Some(Command::MoveDown),
                    KeyCode::Char('k') | KeyCode::Up => Some(Command::MoveUp),
                    KeyCode::Char('[') => Some(Command::PreviousPage),
                    KeyCode::Char(']') => Some(Command::NextPage),
+                   KeyCode::Char('s') => Some(Command::ShowSelection),
                    KeyCode::Char('f') => Some(Command::EnterMode(Mode::Hint)),
                    KeyCode::Char('/') => Some(Command::EnterMode(Mode::Filter)),
                    KeyCode::Char('q') | KeyCode::Esc => Some(Command::Exit),
@@ -151,15 +157,21 @@ fn run(opts: Options) -> Result<Option<String>, Box<dyn Error>> {
                         ui.set_cursor(m);
 
                         if let Some(choice) = ui.line_under_cursor() {
-                            picker.select(choice);
+                            picker.toggle_selection(choice);
                             break;
                         }
 
                     }
                 },
-                Command::Select => {
+                Command::ToggleSelection => {
                     if let Some(choice) = ui.line_under_cursor() {
-                        picker.select(choice)
+                        picker.toggle_selection(choice)
+                    }
+                },
+                Command::ShowSelection => {}
+                Command::SelectAndExit => {
+                    if let Some(choice) = ui.line_under_cursor() {
+                        picker.toggle_selection(choice)
                     }
 
                     break;

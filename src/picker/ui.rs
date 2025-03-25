@@ -4,7 +4,7 @@ use crossterm::terminal::ClearType;
 use crossterm::{cursor, style, terminal, QueueableCommand};
 use anyhow::Result;
 
-use crate::picker::picker::Picker;
+use crate::picker::picker::{Line, Picker};
 use crate::picker::options::{Options, PageSizeOption};
 use std::io::Write;
 use std::str::FromStr;
@@ -165,8 +165,8 @@ impl Ui {
     }
 
     fn render_line(&self, page_lines_idx: usize, all_lines_idx: usize, w: &mut impl Write, picker: &Picker) -> Result<()> {
-        // todo: should this really be as a ref and should we not just pass the line struct
-        let cols = picker.lines().get(all_lines_idx).unwrap().display(&self.opts.display_columns);
+        let line = picker.lines().get(all_lines_idx).unwrap();
+
 
         // todo: maybe only clear lines that need to change
         w.queue(terminal::Clear(ClearType::CurrentLine))?;
@@ -174,13 +174,13 @@ impl Ui {
         match self.mode() {
             Mode::Hint => {
                 match self.get_hint(page_lines_idx) {
-                    Some(hint) => self.render_hinted_line(cols, hint, w)?,
-                    None => self.render_normal_line(cols, false, w)?
+                    Some(hint) => self.render_hinted_line(line, hint, w)?,
+                    None => self.render_normal_line(line, false, w)?
                 }
             },
             _ => {
-                let selected = page_lines_idx == self.cursor;
-                self.render_normal_line(cols, selected, w)?;
+                let current = page_lines_idx == self.cursor;
+                self.render_normal_line(line, current, w)?;
             },
         };
 
@@ -189,8 +189,8 @@ impl Ui {
         Ok(())
     }
 
-    fn render_normal_line(&self, cols: Vec<String>, selected: bool, w: &mut impl Write) -> Result<()> {
-        if selected {
+    fn render_normal_line(&self, line: &Line, current: bool, w: &mut impl Write) -> Result<()> {
+        if current {
             w.queue(style::SetForegroundColor(
                 style::Color::from_str("green").unwrap(),
             ))?;
@@ -198,16 +198,28 @@ impl Ui {
             w.queue(style::Print('>'))?;
         }
 
+        if line.is_selected() {
+            w.queue(style::Print('+'))?;
+        }
+
+        let cols = line.display(&self.opts.display_columns);
+
         self.print_text(cols, w)?;
 
-        if selected {
+        if current {
             w.queue(style::SetForegroundColor(style::Color::Reset))?;
         }
 
         Ok(())
     }
 
-    fn render_hinted_line(&self, cols: Vec<String>, hint: String, w: &mut impl Write) -> Result<()> {
+    fn render_hinted_line(&self, line: &Line, hint: String, w: &mut impl Write) -> Result<()> {
+        if line.is_selected() {
+            w.queue(style::Print('+'))?;
+        }
+
+        let cols = line.display(&self.opts.display_columns);
+
         // first print the whole line
         self.print_text(cols, w)?;
 
@@ -320,6 +332,7 @@ impl Ui {
         self.tape.clone().unwrap_or_default()
     }
 
+    // todo: hint should not be set here
     pub fn match_hint(&mut self, tape: String) -> Option<usize> {
         let Some(map) = &self.hints else {
             return None

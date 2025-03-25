@@ -4,17 +4,27 @@ use regex::Regex;
 // todo: consider having two different types of lines, representing simple and columnar data
 pub struct Line {
     data: Vec<String>,
+    selected: bool,
 }
 
 impl Line {
     fn new(text: &String, delimiter: Option<String>) -> Self {
         let Some(delim) = delimiter else {
-            return Self { data: vec![text.to_string()] };
+            return Self { data: vec![text.to_string()], selected: false };
         };
 
         let data = text.split(delim.as_str()).map(|s| s.to_string()).collect::<Vec<String>>();
 
-        Self { data }
+        Self { data, selected: false }
+    }
+
+    pub fn toggle_selected(&mut self) {
+        let current = self.selected;
+        self.selected = !current;
+    }
+
+    pub fn is_selected(&self) -> bool {
+        self.selected
     }
 
     pub fn display(&self, columns: &Option<ColumnRange>) -> Vec<String> {
@@ -64,7 +74,6 @@ impl Line {
 }
 pub struct Picker {
     lines: Vec<Line>,
-    selection: Option<usize>,
     filter: Option<String>,
     opts: Options,
 }
@@ -75,25 +84,28 @@ impl Picker {
 
         Self {
             lines,
-            selection: None,
             filter: None,
             opts,
         }
     }
 
-    pub fn result(&self) -> Option<String> {
-        match self.selection {
-            None => None,
-            Some(i) => self.lines().get(i).map(|l| l.output(&self.opts.output_columns, self.opts.delimiter.clone()))
-        }
+    pub fn result(&self) -> Option<Vec<String>> {
+        let selected = self.lines.iter().filter(|l| l.selected).collect::<Vec<&Line>>();
+        if selected.len() == 0 {
+            return None
+        };
+
+        let output = selected.iter().map(|l| l.output(&self.opts.output_columns, self.opts.delimiter.clone())).collect();
+
+        Some(output)
     }
 
     pub fn lines(&self) -> &Vec<Line> {
         &self.lines
     }
 
-    pub fn select(&mut self, index: usize) {
-        self.selection = Some(index);
+    pub fn toggle_selection(&mut self, index: usize) {
+        self.lines.get_mut(index).unwrap().toggle_selected();
     }
 
     pub fn filter_text(&self) -> String {
