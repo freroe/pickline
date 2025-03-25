@@ -1,16 +1,16 @@
-use std::cmp::{max, min};
-use std::collections::HashMap;
+use anyhow::Result;
 use crossterm::terminal::ClearType;
 use crossterm::{cursor, style, terminal, QueueableCommand};
-use anyhow::Result;
+use std::cmp::{max, min};
+use std::collections::HashMap;
 
-use crate::picker::picker::{Line, Picker};
+use crate::picker::modes::Mode;
 use crate::picker::options::{Options, PageSizeOption};
-use std::io::Write;
-use std::str::FromStr;
+use crate::picker::picker::Picker;
 use crossterm::style::Stylize;
 use regex::Regex;
-use crate::picker::modes::Mode;
+use std::io::Write;
+use std::str::FromStr;
 
 pub struct Ui {
     cursor: usize,
@@ -131,11 +131,9 @@ impl Ui {
         w.queue(style::Print("Current selection:"))?
             .queue(cursor::MoveToNextLine(1))?;
 
-        for l in picker.lines() {
-            if l.is_selected() {
-                w.queue(style::Print(l.output(&self.opts.output_columns, self.opts.delimiter.clone())))?
-                    .queue(cursor::MoveToNextLine(1))?;
-            }
+        for l in picker.selected().iter() {
+            w.queue(style::Print(l.output(&self.opts.output_columns, self.opts.delimiter.clone())))?
+                .queue(cursor::MoveToNextLine(1))?;
         }
 
         w.flush()?;
@@ -185,8 +183,8 @@ impl Ui {
     }
 
     fn render_line(&self, page_lines_idx: usize, all_lines_idx: usize, w: &mut impl Write, picker: &Picker) -> Result<()> {
-        let line = picker.lines().get(all_lines_idx).unwrap();
-
+        let cols = picker.lines().get(all_lines_idx).unwrap().display(&self.opts.output_columns);
+        let selected = picker.is_selected(all_lines_idx);
 
         // todo: maybe only clear lines that need to change
         w.queue(terminal::Clear(ClearType::CurrentLine))?;
@@ -194,13 +192,13 @@ impl Ui {
         match self.mode() {
             Mode::Hint => {
                 match self.get_hint(page_lines_idx) {
-                    Some(hint) => self.render_hinted_line(line, hint, w)?,
-                    None => self.render_normal_line(line, false, w)?
+                    Some(hint) => self.render_hinted_line(cols, hint, selected, w)?,
+                    None => self.render_normal_line(cols, false, selected, w)?
                 }
             },
             _ => {
                 let current = page_lines_idx == self.cursor;
-                self.render_normal_line(line, current, w)?;
+                self.render_normal_line(cols, current, selected, w)?;
             },
         };
 
@@ -209,7 +207,7 @@ impl Ui {
         Ok(())
     }
 
-    fn render_normal_line(&self, line: &Line, current: bool, w: &mut impl Write) -> Result<()> {
+    fn render_normal_line(&self, cols: Vec<String>, current: bool, selected: bool, w: &mut impl Write) -> Result<()> {
         if current {
             w.queue(style::SetForegroundColor(
                 style::Color::from_str("green").unwrap(),
@@ -218,11 +216,9 @@ impl Ui {
             w.queue(style::Print('>'))?;
         }
 
-        if line.is_selected() {
+        if selected {
             w.queue(style::Print('+'))?;
         }
-
-        let cols = line.display(&self.opts.display_columns);
 
         self.print_text(cols, w)?;
 
@@ -233,12 +229,10 @@ impl Ui {
         Ok(())
     }
 
-    fn render_hinted_line(&self, line: &Line, hint: String, w: &mut impl Write) -> Result<()> {
-        if line.is_selected() {
+    fn render_hinted_line(&self, cols: Vec<String>, hint: String, selected: bool, w: &mut impl Write) -> Result<()> {
+        if selected {
             w.queue(style::Print('+'))?;
         }
-
-        let cols = line.display(&self.opts.display_columns);
 
         // first print the whole line
         self.print_text(cols, w)?;

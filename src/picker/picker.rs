@@ -4,27 +4,17 @@ use regex::Regex;
 // todo: consider having two different types of lines, representing simple and columnar data
 pub struct Line {
     data: Vec<String>,
-    selected: bool,
 }
 
 impl Line {
     fn new(text: &String, delimiter: Option<String>) -> Self {
         let Some(delim) = delimiter else {
-            return Self { data: vec![text.to_string()], selected: false };
+            return Self { data: vec![text.to_string()] };
         };
 
         let data = text.split(delim.as_str()).map(|s| s.to_string()).collect::<Vec<String>>();
 
-        Self { data, selected: false }
-    }
-
-    pub fn toggle_selected(&mut self) {
-        let current = self.selected;
-        self.selected = !current;
-    }
-
-    pub fn is_selected(&self) -> bool {
-        self.selected
+        Self { data }
     }
 
     // todo: maybe this and the `output` method belongs in ui.rs
@@ -77,6 +67,7 @@ impl Line {
 pub struct Picker {
     lines: Vec<Line>,
     filter: Option<String>,
+    selection: Vec<usize>,
     opts: Options,
 }
 
@@ -87,19 +78,26 @@ impl Picker {
         Self {
             lines,
             filter: None,
+            selection: vec![],
             opts,
         }
     }
 
     pub fn result(&self) -> Option<Vec<String>> {
-        let selected = self.lines.iter().filter(|l| l.selected).collect::<Vec<&Line>>();
-        if selected.len() == 0 {
-            return None
-        };
+        match &self.selection {
+            s if s.len() > 0 => {
+                let selected = s.iter().map(|i| {
+                    self.lines.get(*i).unwrap().output(&self.opts.output_columns, self.opts.delimiter.clone())
+                });
 
-        let output = selected.iter().map(|l| l.output(&self.opts.output_columns, self.opts.delimiter.clone())).collect();
+                Some(selected.collect())
+            },
+            _ => None,
+        }
+    }
 
-        Some(output)
+    pub fn selected(&self) -> Vec<&Line> {
+        self.selection.iter().map(|i| self.lines.get(*i).unwrap()).collect::<Vec<&Line>>()
     }
 
     pub fn lines(&self) -> &Vec<Line> {
@@ -107,7 +105,16 @@ impl Picker {
     }
 
     pub fn toggle_selection(&mut self, index: usize) {
-        self.lines.get_mut(index).unwrap().toggle_selected();
+        match self.selection.get(index) {
+            None => self.selection.push(index),
+            Some(_) => {
+                self.selection.remove(index);
+            }
+        }
+    }
+
+    pub fn is_selected(&self, index: usize) -> bool {
+        self.selection.contains(&index)
     }
 
     pub fn filter_text(&self) -> String {
