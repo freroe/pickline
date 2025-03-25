@@ -139,6 +139,13 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
                     _ => None,
                 }
             }
+            Mode::DisplaySelection => {
+                match key_code {
+                    KeyCode::Enter => Some(Command::EnterMode(Mode::Normal)),
+                    KeyCode::Esc => Some(Command::EnterMode(Mode::Normal)),
+                    _ => None,
+                }
+            }
         };
 
         if let Some(command) = command {
@@ -168,7 +175,9 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
                         picker.toggle_selection(choice)
                     }
                 },
-                Command::ShowSelection => {}
+                Command::ShowSelection => {
+                    ui.change_mode(Mode::DisplaySelection);
+                }
                 Command::SelectAndExit => {
                     if let Some(choice) = ui.line_under_cursor() {
                         picker.toggle_selection(choice)

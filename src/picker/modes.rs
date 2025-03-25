@@ -2,5 +2,6 @@
 pub enum Mode {
     Normal,
     Filter,
-    Hint
+    Hint,
+    DisplaySelection,
 }

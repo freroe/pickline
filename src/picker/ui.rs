@@ -127,9 +127,29 @@ impl Ui {
         Ok(())
     }
 
+    pub fn show_selections(&mut self, w: &mut impl Write, picker: &Picker) -> Result<()> {
+        w.queue(style::Print("Current selection:"))?
+            .queue(cursor::MoveToNextLine(1))?;
+
+        for l in picker.lines() {
+            if l.is_selected() {
+                w.queue(style::Print(l.output(&self.opts.output_columns, self.opts.delimiter.clone())))?
+                    .queue(cursor::MoveToNextLine(1))?;
+            }
+        }
+
+        w.flush()?;
+
+        Ok(())
+    }
+
     pub fn draw(&mut self, w: &mut impl Write, picker: &Picker) -> Result<()> {
         w.queue(cursor::MoveTo(0, self.top))?
             .queue(terminal::Clear(ClearType::FromCursorDown))?;
+
+        if self.mode == Mode::DisplaySelection {
+            return self.show_selections(w, picker);
+        }
 
         if let Some(page) = self.pages.get(self.page) {
             for (page_lines_idx, all_lines_idx) in page.iter().enumerate() {

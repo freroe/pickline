@@ -27,6 +27,7 @@ impl Line {
         self.selected
     }
 
+    // todo: maybe this and the `output` method belongs in ui.rs
     pub fn display(&self, columns: &Option<ColumnRange>) -> Vec<String> {
         match columns {
             None => self.data.clone(),
@@ -34,6 +35,7 @@ impl Line {
         }
     }
 
+    // todo: fix issue where delimiter is cloned into this everywhere..
     pub fn output(&self, columns: &Option<ColumnRange>, delimiter: Option<String>) -> String {
         let cols = match columns {
             None => self.data.clone(),
