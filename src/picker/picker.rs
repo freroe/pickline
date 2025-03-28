@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use crate::picker::options::{ColumnRange, Options};
 use regex::Regex;
 
@@ -67,7 +68,7 @@ impl Line {
 pub struct Picker {
     lines: Vec<Line>,
     filter: Option<String>,
-    selection: Vec<usize>,
+    selection: HashSet<usize>,
     opts: Options,
 }
 
@@ -78,7 +79,7 @@ impl Picker {
         Self {
             lines,
             filter: None,
-            selection: vec![],
+            selection: HashSet::new(),
             opts,
         }
     }
@@ -105,12 +106,10 @@ impl Picker {
     }
 
     pub fn toggle_selection(&mut self, index: usize) {
-        match self.selection.get(index) {
-            None => self.selection.push(index),
-            Some(_) => {
-                self.selection.remove(index);
-            }
-        }
+        let _ = match self.selection.contains(&index) {
+            false => self.selection.insert(index),
+            true => self.selection.remove(&index),
+        };
     }
 
     pub fn is_selected(&self, index: usize) -> bool {
