@@ -158,8 +158,14 @@ impl Ui {
         w.queue(cursor::MoveTo(0, self.bar))?
             .queue(terminal::Clear(ClearType::CurrentLine))?;
 
+
         if self.mode() == Mode::Filter || picker.filter_text().len() > 0 {
-            let filter_text = format!("filter:{}", picker.filter_text());
+            let filter_text = match self.mode {
+                Mode::Filter => self.input_buffer.clone(),
+                _ => picker.filter_text()
+            };
+
+            let filter_text = format!("filter:{}", filter_text);
             let style_attr = match self.mode() {
                 Mode::Filter => style::Attribute::Reset,
                 _ => style::Attribute::Dim,
@@ -339,6 +345,13 @@ impl Ui {
 
     fn calc_pages(indexes: Vec<usize>, page_size: usize) -> Vec<Vec<usize>> {
         indexes.chunks(page_size).map(|c| c.to_vec()).collect()
+    }
+
+    pub fn set_input_buffer(&mut self, s: String) {
+        self.input_buffer = s;
+    }
+    pub fn get_input_buffer(&self) -> String {
+        self.input_buffer.to_string()
     }
 
     pub fn clear_input_buffer(&mut self) {

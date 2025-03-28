@@ -120,6 +120,10 @@ impl Picker {
         self.filter.clone().unwrap_or_default()
     }
 
+    pub fn persist_filter(&mut self, filter: String) {
+        self.filter = Some(filter);
+    }
+
     // todo: look into not cloning here..
     pub fn apply_filter(&mut self, filter: String) -> Vec<usize> {
         let indexes = match &filter {
@@ -136,7 +140,6 @@ impl Picker {
             }
         };
 
-        self.filter = Some(filter);
         indexes.clone()
     }
 }

@@ -122,19 +122,14 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
                 }
             }
             Mode::Filter => {
-                let mut filter = picker.filter_text();
-
-                // todo: think of a way to cancel the filtering operation and restore the previous filter
                 match key_code {
-                    KeyCode::Enter => Some(Command::EnterMode(Mode::Normal)),
-                    KeyCode::Esc => Some(Command::EnterMode(Mode::Normal)),
+                    KeyCode::Enter => Some(Command::SaveFilter),
+                    KeyCode::Esc => Some(Command::DiscardFilter),
                     KeyCode::Backspace => {
-                        filter.pop();
-                        Some(Command::Filter(filter))
+                        Some(Command::PopCharFromFilter)
                     }
                     KeyCode::Char(c) => {
-                        filter.push(c);
-                        Some(Command::Filter(filter))
+                        Some(Command::AddCharToFilter(c))
                     },
                     _ => None,
                 }
@@ -150,15 +145,34 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
 
         if let Some(command) = command {
             match command {
+                Command::EnterMode(mode) if mode == Mode::Filter => {
+                    ui.set_input_buffer(picker.filter_text());
+                    ui.change_mode(mode)
+                },
                 Command::EnterMode(mode) => ui.change_mode(mode),
                 Command::MoveUp => ui.move_cursor_up(),
                 Command::MoveDown => ui.move_cursor_down(),
                 Command::PreviousPage => ui.previous_page(),
                 Command::NextPage => ui.next_page(),
-                Command::Filter(s) => {
-                    let visible = picker.apply_filter(s);
+                Command::AddCharToFilter(c) => {
+                    ui.push_to_input_buffer(c);
+                    let visible = picker.apply_filter(ui.get_input_buffer());
                     ui.paginate(visible);
-                },
+                }
+                Command::PopCharFromFilter => {
+                    ui.pop_from_input_buffer();
+                    let visible = picker.apply_filter(ui.get_input_buffer());
+                    ui.paginate(visible);
+                }
+                Command::DiscardFilter => {
+                    let visible = picker.apply_filter(picker.filter_text());
+                    ui.paginate(visible);
+                    ui.change_mode(Mode::Normal);
+                }
+                Command::SaveFilter => {
+                    picker.persist_filter(ui.get_input_buffer());
+                    ui.change_mode(Mode::Normal);
+                }
                 Command::AddHintChar(c, select_action) => {
                     ui.push_to_input_buffer(c);
 
