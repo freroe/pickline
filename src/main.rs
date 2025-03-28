@@ -10,6 +10,7 @@ use clap::{crate_authors, crate_version, Arg};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::error::Error;
 use std::io;
+use std::io::BufWriter;
 
 fn main() {
     let matches = clap::Command::new("pickline")
@@ -79,7 +80,7 @@ fn main() {
 fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
     let lines = io::stdin().lines();
 
-    let mut w = io::stderr();
+    let mut w = BufWriter::new(io::stderr());
     let mut picker = Picker::new(lines.map(|l| l.unwrap()).collect(), opts.clone());
     let mut ui = Ui::new(&picker, opts.clone());
 
