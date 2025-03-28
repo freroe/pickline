@@ -152,11 +152,11 @@ impl Ui {
         if let Some(page) = self.pages.get(self.page) {
             for (page_lines_idx, all_lines_idx) in page.iter().enumerate() {
                 self.render_line(page_lines_idx, *all_lines_idx, w, picker)?;
+                w.queue(cursor::MoveToNextLine(1))?;
             }
         }
 
-        w.queue(cursor::MoveTo(0, self.bar))?
-            .queue(terminal::Clear(ClearType::CurrentLine))?;
+        w.queue(cursor::MoveTo(0, self.bar))?;
 
 
         if self.mode() == Mode::Filter || picker.filter_text().len() > 0 {
@@ -188,12 +188,23 @@ impl Ui {
         Ok(())
     }
 
+    pub fn draw_line(&mut self, cursor_index: usize, w: &mut impl Write, picker: &Picker) -> Result<()> {
+        if let Some(page) = self.pages.get(self.page) {
+            w.queue(cursor::MoveTo(0, self.top + cursor_index as u16))?
+                .queue(terminal::Clear(ClearType::CurrentLine))?;
+
+            let line_index = page.get(cursor_index).unwrap();
+            self.render_line(cursor_index, *line_index, w, picker)?;
+        }
+
+        w.flush()?;
+
+        Ok(())
+    }
+
     fn render_line(&self, page_lines_idx: usize, all_lines_idx: usize, w: &mut impl Write, picker: &Picker) -> Result<()> {
         let cols = picker.lines().get(all_lines_idx).unwrap().display(&self.opts.output_columns);
         let selected = picker.is_selected(all_lines_idx);
-
-        // todo: maybe only clear lines that need to change
-        w.queue(terminal::Clear(ClearType::CurrentLine))?;
 
         match self.mode() {
             Mode::Hint(_) => {
@@ -208,7 +219,6 @@ impl Ui {
             },
         };
 
-        w.queue(cursor::MoveToNextLine(1))?;
 
         Ok(())
     }
@@ -288,6 +298,10 @@ impl Ui {
         self.cursor = i;
     }
 
+    pub fn get_cursor(&self) -> usize {
+        self.cursor
+    }
+
     fn align_cursor(&mut self) {
         if let Some(page) = self.page() {
             self.cursor = min(page.len() - 1, self.cursor);
@@ -296,6 +310,7 @@ impl Ui {
         }
     }
 
+    // todo: does this really need to be an option?
     pub fn line_under_cursor(&self) -> Option<usize> {
         if let Some(page) = self.page() {
             return page.get(self.cursor).map(|i| i.clone())
@@ -304,14 +319,20 @@ impl Ui {
         None
     }
 
-    pub fn move_cursor_up(&mut self) {
+    pub fn move_cursor_up(&mut self) -> bool {
+        let prev = self.cursor;
         self.cursor = Self::saturating_decrement(self.cursor);
+        prev != self.cursor
     }
 
-    pub fn move_cursor_down(&mut self) {
+    pub fn move_cursor_down(&mut self) -> bool {
+        let prev = self.cursor;
+
         if let Some(page) = self.page() {
             self.cursor = Self::increment_to_max(self.cursor, min(page.len() - 1, self.page_size - 1));
         }
+
+        prev != self.cursor
     }
 
     pub fn paginate(&mut self, indexes: Vec<usize>) {

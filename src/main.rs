@@ -10,6 +10,7 @@ use clap::{crate_authors, crate_version, Arg};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::error::Error;
 use std::io;
+use crate::picker::redraw_action::RedrawAction;
 
 fn main() {
     let matches = clap::Command::new("pickline")
@@ -85,9 +86,8 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
 
     ui.setup(&mut w)?;
 
+    ui.draw(&mut w, &picker)?;
     loop {
-        ui.draw(&mut w, &picker)?;
-
         let (key_code, modifiers) = next_keycode()?;
 
         let command = match ui.mode() {
@@ -144,34 +144,60 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
         };
 
         if let Some(command) = command {
-            match command {
+            let redraw_action = match command {
                 Command::EnterMode(mode) if mode == Mode::Filter => {
                     ui.set_input_buffer(picker.filter_text());
-                    ui.change_mode(mode)
+                    ui.change_mode(mode);
+                    Some(RedrawAction::Bar)
                 },
-                Command::EnterMode(mode) => ui.change_mode(mode),
-                Command::MoveUp => ui.move_cursor_up(),
-                Command::MoveDown => ui.move_cursor_down(),
-                Command::PreviousPage => ui.previous_page(),
-                Command::NextPage => ui.next_page(),
+                Command::EnterMode(mode) => {
+                    ui.change_mode(mode);
+                    Some(RedrawAction::All)
+                },
+                Command::MoveUp => {
+                    let cursor_moved = ui.move_cursor_up();
+                    cursor_moved.then(|| {
+                        let line = ui.get_cursor();
+                        RedrawAction::LinePair(line, line + 1)
+                    })
+                },
+                Command::MoveDown => {
+                    let cursor_moved = ui.move_cursor_down();
+                    cursor_moved.then(|| {
+                        let line = ui.get_cursor();
+                        RedrawAction::LinePair(line, line - 1)
+                    })
+                },
+                Command::PreviousPage => {
+                    ui.previous_page();
+                    Some(RedrawAction::All)
+                }
+                Command::NextPage => {
+                    ui.next_page();
+                    Some(RedrawAction::All)
+                }
                 Command::AddCharToFilter(c) => {
                     ui.push_to_input_buffer(c);
                     let visible = picker.apply_filter(ui.get_input_buffer());
                     ui.paginate(visible);
+                    Some(RedrawAction::All)
                 }
                 Command::PopCharFromFilter => {
                     ui.pop_from_input_buffer();
                     let visible = picker.apply_filter(ui.get_input_buffer());
                     ui.paginate(visible);
+                    Some(RedrawAction::All)
                 }
                 Command::DiscardFilter => {
                     let visible = picker.apply_filter(picker.filter_text());
                     ui.paginate(visible);
                     ui.change_mode(Mode::Normal);
+                    Some(RedrawAction::All)
                 }
                 Command::SaveFilter => {
                     picker.persist_filter(ui.get_input_buffer());
                     ui.change_mode(Mode::Normal);
+                    Some(RedrawAction::All)
                 }
                 Command::AddHintChar(c, select_action) => {
                     ui.push_to_input_buffer(c);
@@ -192,21 +218,32 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
                     if !valid {
                         ui.pop_from_input_buffer()
                     }
+
+                    Some(RedrawAction::All)
                 },
                 Command::RemoveHintChar => {
                     ui.pop_from_input_buffer();
+
+                    Some(RedrawAction::All)
                 }
                 Command::ToggleSelection(select_action) => {
+                    let mut toggled = false;
                     if let Some(choice) = ui.line_under_cursor() {
                         picker.toggle_selection(choice);
 
                         if select_action == SelectAction::Exit {
                             break
                         }
-                    }
+
+                        toggled = true;
+                    };
+
+                    toggled.then(|| RedrawAction::SingleLine(ui.get_cursor()))
+
                 },
                 Command::ShowSelection => {
                     ui.change_mode(Mode::DisplaySelection);
+                    Some(RedrawAction::All)
                 }
                 Command::Exit => break,
                 Command::ToggleSelectionForVisible(select_action) => {
@@ -219,8 +256,23 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
                     if select_action == SelectAction::Exit {
                         break
                     }
+
+                    Some(RedrawAction::All)
                 }
+            };
+
+            match redraw_action {
+                None => {}
+                Some(RedrawAction::All) => ui.draw(&mut w, &picker)?,
+                Some(RedrawAction::SingleLine(i)) => ui.draw_line(i, &mut w, &picker)?,
+                Some(RedrawAction::LinePair(i, j)) => {
+                    ui.draw_line(i, &mut w, &picker)?;
+                    ui.draw_line(j, &mut w, &picker)?;
+                }
+                // todo: only need to draw bar here, implement that
+                Some(RedrawAction::Bar) => ui.draw(&mut w, &picker)?,
             }
+
         }
     }
 
