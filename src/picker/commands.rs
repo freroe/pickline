@@ -10,6 +10,7 @@ pub(crate) enum Command {
     ShowSelection,
     SelectAndExit,
     Filter(String),
-    Hint(String),
+    AddHintChar(char),
+    RemoveHintChar,
     Exit,
 }

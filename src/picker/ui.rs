@@ -15,6 +15,7 @@ use std::str::FromStr;
 pub struct Ui {
     cursor: usize,
     mode: Mode,
+    input_buffer: String,
 
     // pagination
     page: usize,
@@ -23,7 +24,6 @@ pub struct Ui {
 
     // hinting
     hints: Option<HashMap<usize, String>>,
-    tape: Option<String>,
 
     // terminal window
     scroll_off: Option<u16>,
@@ -82,6 +82,7 @@ impl Ui {
         Ui {
             mode: Mode::Normal,
             cursor: initial_index,
+            input_buffer: String::new(),
 
             // pagination
             page: 0,
@@ -90,7 +91,6 @@ impl Ui {
 
             // hinting
             hints: None,
-            tape: None,
 
             scroll_off,
             width: term_size.0,
@@ -263,11 +263,10 @@ impl Ui {
         match (self.mode.clone(), mode.clone()) {
             (Mode::Normal, Mode::Hint) => {
                 self.hints = self.calculate_hints(self.opts.hint_alphabet.chars().collect());
-                self.tape = Some(String::new());
             }
             (Mode::Hint, Mode::Normal) => {
                 self.hints = None;
-                self.tape = None;
+                self.input_buffer.clear();
             }
             _ => {}
         }
@@ -342,32 +341,31 @@ impl Ui {
         indexes.chunks(page_size).map(|c| c.to_vec()).collect()
     }
 
-    pub fn tape(&self) -> String {
-        self.tape.clone().unwrap_or_default()
+    pub fn push_to_input_buffer(&mut self, c: char) {
+        self.input_buffer.push(c);
     }
 
-    // todo: hint should not be set here
-    pub fn match_hint(&mut self, tape: String) -> Option<usize> {
+    pub fn pop_from_input_buffer(&mut self) {
+        self.input_buffer.pop();
+    }
+
+    pub fn match_hint(&mut self) -> (Option<usize>, bool) {
         let Some(map) = &self.hints else {
-            return None
+            return (None, false)
         };
 
-        let mut valid_tape = false;
+        let mut valid = false;
         for (idx, hint) in map {
-            if hint.contains(&tape) {
-                valid_tape = true;
+            if hint.contains(&self.input_buffer) {
+                valid = true;
 
-                if *hint == tape {
-                    return Some(*idx)
+                if *hint == self.input_buffer {
+                    return (Some(*idx), true);
                 }
             }
         }
 
-        if valid_tape {
-            self.tape = Some(tape);
-        }
-
-        None
+        (None, valid)
     }
 
     pub fn get_hint(&self, i: usize) -> Option<String> {

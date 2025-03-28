@@ -106,17 +106,13 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
                }
             }
             Mode::Hint => {
-                let mut tape = ui.tape();
-
                 match key_code {
                     KeyCode::Esc => Some(Command::EnterMode(Mode::Normal)),
                     KeyCode::Backspace => {
-                        tape.pop();
-                        Some(Command::Hint(tape))
+                        Some(Command::RemoveHintChar)
                     }
                     KeyCode::Char(c) => {
-                        tape.push(c);
-                        Some(Command::Hint(tape))
+                        Some(Command::AddHintChar(c))
                     },
                     _ => None,
                 }
@@ -159,17 +155,26 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
                     let visible = picker.apply_filter(s);
                     ui.paginate(visible);
                 },
-                Command::Hint(s) => {
-                    if let Some(m) = ui.match_hint(s) {
-                        ui.set_cursor(m);
+                Command::AddHintChar(c) => {
+                    ui.push_to_input_buffer(c);
+
+                    let (hit, valid) = ui.match_hint();
+                    if let Some(index) = hit {
+                        ui.set_cursor(index);
 
                         if let Some(choice) = ui.line_under_cursor() {
                             picker.toggle_selection(choice);
                             break;
                         }
+                    }
 
+                    if !valid {
+                        ui.pop_from_input_buffer()
                     }
                 },
+                Command::RemoveHintChar => {
+                    ui.pop_from_input_buffer();
+                }
                 Command::ToggleSelection => {
                     if let Some(choice) = ui.line_under_cursor() {
                         picker.toggle_selection(choice)
