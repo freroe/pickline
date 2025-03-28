@@ -4,4 +4,3 @@ pub(crate) mod picker;
 pub(crate) mod modes;
 pub(crate) mod options;
 pub(crate) mod select_action;
-pub(crate) mod redraw_action;
