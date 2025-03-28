@@ -1,4 +1,5 @@
 use crate::picker::modes::Mode;
+use crate::picker::select_action::SelectAction;
 
 pub(crate) enum Command {
     EnterMode(Mode),
@@ -6,11 +7,10 @@ pub(crate) enum Command {
     MoveDown,
     PreviousPage,
     NextPage,
-    ToggleSelection,
+    ToggleSelection(SelectAction),
     ShowSelection,
-    SelectAndExit,
     Filter(String),
-    AddHintChar(char),
+    AddHintChar(char, SelectAction),
     RemoveHintChar,
     Exit,
 }

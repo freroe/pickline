@@ -4,6 +4,7 @@ use crate::picker::commands::Command;
 use crate::picker::modes::Mode;
 use crate::picker::options::Options;
 use crate::picker::picker::Picker;
+use crate::picker::select_action::SelectAction;
 use crate::picker::ui::Ui;
 use clap::{crate_authors, crate_version, Arg};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
@@ -92,28 +93,30 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
         let command = match ui.mode() {
             Mode::Normal => {
                match key_code {
-                   KeyCode::Enter => Some(Command::SelectAndExit),
-                   KeyCode::Char(' ') => Some(Command::ToggleSelection),
+                   KeyCode::Enter => Some(Command::ToggleSelection(SelectAction::Exit)),
+                   KeyCode::Char(' ') => Some(Command::ToggleSelection(SelectAction::None)),
                    KeyCode::Char('j') | KeyCode::Down => Some(Command::MoveDown),
                    KeyCode::Char('k') | KeyCode::Up => Some(Command::MoveUp),
                    KeyCode::Char('[') => Some(Command::PreviousPage),
                    KeyCode::Char(']') => Some(Command::NextPage),
                    KeyCode::Char('s') => Some(Command::ShowSelection),
-                   KeyCode::Char('f') => Some(Command::EnterMode(Mode::Hint)),
+                   KeyCode::Char('f') => Some(Command::EnterMode(Mode::Hint(SelectAction::Exit))),
+                   KeyCode::Char('F') => Some(Command::EnterMode(Mode::Hint(SelectAction::None))),
                    KeyCode::Char('/') => Some(Command::EnterMode(Mode::Filter)),
                    KeyCode::Char('q') | KeyCode::Esc => Some(Command::Exit),
                    _ => None,
                }
             }
-            Mode::Hint => {
+            Mode::Hint(sa) => {
                 match key_code {
                     KeyCode::Esc => Some(Command::EnterMode(Mode::Normal)),
                     KeyCode::Backspace => {
                         Some(Command::RemoveHintChar)
                     }
                     KeyCode::Char(c) => {
-                        Some(Command::AddHintChar(c))
+                        Some(Command::AddHintChar(c, sa))
                     },
+                    KeyCode::Enter => Some(Command::Exit),
                     _ => None,
                 }
             }
@@ -155,7 +158,7 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
                     let visible = picker.apply_filter(s);
                     ui.paginate(visible);
                 },
-                Command::AddHintChar(c) => {
+                Command::AddHintChar(c, select_action) => {
                     ui.push_to_input_buffer(c);
 
                     let (hit, valid) = ui.match_hint();
@@ -164,7 +167,10 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
 
                         if let Some(choice) = ui.line_under_cursor() {
                             picker.toggle_selection(choice);
-                            break;
+                            if select_action == SelectAction::Exit {
+                                break;
+                            }
+                            ui.clear_input_buffer();
                         }
                     }
 
@@ -175,21 +181,18 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
                 Command::RemoveHintChar => {
                     ui.pop_from_input_buffer();
                 }
-                Command::ToggleSelection => {
+                Command::ToggleSelection(select_action) => {
                     if let Some(choice) = ui.line_under_cursor() {
-                        picker.toggle_selection(choice)
+                        picker.toggle_selection(choice);
+
+                        if select_action == SelectAction::Exit {
+                            break
+                        }
                     }
                 },
                 Command::ShowSelection => {
                     ui.change_mode(Mode::DisplaySelection);
                 }
-                Command::SelectAndExit => {
-                    if let Some(choice) = ui.line_under_cursor() {
-                        picker.toggle_selection(choice)
-                    }
-
-                    break;
-                },
                 Command::Exit => break,
             }
         }

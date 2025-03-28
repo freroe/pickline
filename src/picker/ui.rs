@@ -190,7 +190,7 @@ impl Ui {
         w.queue(terminal::Clear(ClearType::CurrentLine))?;
 
         match self.mode() {
-            Mode::Hint => {
+            Mode::Hint(_) => {
                 match self.get_hint(page_lines_idx) {
                     Some(hint) => self.render_hinted_line(cols, hint, selected, w)?,
                     None => self.render_normal_line(cols, false, selected, w)?
@@ -261,12 +261,12 @@ impl Ui {
     // todo: use this more consistently, to align states between modes
     pub fn change_mode(&mut self, mode: Mode) {
         match (self.mode.clone(), mode.clone()) {
-            (Mode::Normal, Mode::Hint) => {
+            (Mode::Normal, Mode::Hint(_)) => {
                 self.hints = self.calculate_hints(self.opts.hint_alphabet.chars().collect());
             }
-            (Mode::Hint, Mode::Normal) => {
+            (Mode::Hint(_), Mode::Normal) => {
                 self.hints = None;
-                self.input_buffer.clear();
+                self.clear_input_buffer();
             }
             _ => {}
         }
@@ -339,6 +339,10 @@ impl Ui {
 
     fn calc_pages(indexes: Vec<usize>, page_size: usize) -> Vec<Vec<usize>> {
         indexes.chunks(page_size).map(|c| c.to_vec()).collect()
+    }
+
+    pub fn clear_input_buffer(&mut self) {
+        self.input_buffer.clear();
     }
 
     pub fn push_to_input_buffer(&mut self, c: char) {
