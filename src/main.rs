@@ -7,7 +7,7 @@ use crate::picker::picker::Picker;
 use crate::picker::select_action::SelectAction;
 use crate::picker::ui::Ui;
 use clap::{crate_authors, crate_version, Arg};
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::error::Error;
 use std::io;
 
@@ -88,11 +88,12 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
     loop {
         ui.draw(&mut w, &picker)?;
 
-        let key_code = next_keycode()?;
+        let (key_code, modifiers) = next_keycode()?;
 
         let command = match ui.mode() {
             Mode::Normal => {
                match key_code {
+                   KeyCode::Char(' ') if modifiers.contains(KeyModifiers::CONTROL) => Some(Command::ToggleSelectionForVisible(SelectAction::None)),
                    KeyCode::Enter => Some(Command::ToggleSelection(SelectAction::Exit)),
                    KeyCode::Char(' ') => Some(Command::ToggleSelection(SelectAction::None)),
                    KeyCode::Char('j') | KeyCode::Down => Some(Command::MoveDown),
@@ -194,6 +195,17 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
                     ui.change_mode(Mode::DisplaySelection);
                 }
                 Command::Exit => break,
+                Command::ToggleSelectionForVisible(select_action) => {
+                    if let Some(page) = ui.page() {
+                        for line in page {
+                            picker.toggle_selection(*line);
+                        }
+                    }
+
+                    if select_action == SelectAction::Exit {
+                        break
+                    }
+                }
             }
         }
     }
@@ -203,16 +215,16 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
     Ok(picker.result())
 }
 
-fn next_keycode() -> std::io::Result<KeyCode> {
+fn next_keycode() -> std::io::Result<(KeyCode, KeyModifiers)> {
     loop {
         if let Ok(Event::Key(KeyEvent {
                                  code,
                                  kind: KeyEventKind::Press,
-                                 modifiers: _,
+                                 modifiers,
                                  state: _,
                              })) = crossterm::event::read()
         {
-            return Ok(code);
+            return Ok((code, modifiers));
         }
     }
 }

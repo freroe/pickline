@@ -8,6 +8,7 @@ pub(crate) enum Command {
     PreviousPage,
     NextPage,
     ToggleSelection(SelectAction),
+    ToggleSelectionForVisible(SelectAction),
     ShowSelection,
     Filter(String),
     AddHintChar(char, SelectAction),
