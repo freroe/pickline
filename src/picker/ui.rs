@@ -189,7 +189,7 @@ impl Ui {
     }
 
     fn render_line(&self, page_lines_idx: usize, all_lines_idx: usize, w: &mut impl Write, picker: &Picker) -> Result<()> {
-        let cols = picker.lines().get(all_lines_idx).unwrap().display(&self.opts.output_columns);
+        let cols = picker.lines().get(all_lines_idx).unwrap().display(&self.opts.display_columns);
         let selected = picker.is_selected(all_lines_idx);
 
         // todo: maybe only clear lines that need to change
