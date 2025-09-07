@@ -87,7 +87,7 @@ impl Ui {
             // pagination
             page: 0,
             page_size,
-            pages: Self::calc_pages((0..picker.lines().len()).collect(), page_size),
+            pages: Self::calc_pages((0..picker.lines().len()).collect::<Vec<usize>>().as_slice(), page_size),
 
             // hinting
             hints: None,
@@ -198,13 +198,13 @@ impl Ui {
         match self.mode() {
             Mode::Hint(_) => {
                 match self.get_hint(page_lines_idx) {
-                    Some(hint) => self.render_hinted_line(cols, hint, selected, w)?,
-                    None => self.render_normal_line(cols, false, selected, w)?
+                    Some(hint) => self.render_hinted_line(cols.as_slice(), hint, selected, w)?,
+                    None => self.render_normal_line(cols.as_slice(), false, selected, w)?
                 }
             },
             _ => {
                 let current = page_lines_idx == self.cursor;
-                self.render_normal_line(cols, current, selected, w)?;
+                self.render_normal_line(cols.as_slice(), current, selected, w)?;
             },
         };
 
@@ -213,7 +213,7 @@ impl Ui {
         Ok(())
     }
 
-    fn render_normal_line(&self, cols: Vec<String>, current: bool, selected: bool, w: &mut impl Write) -> Result<()> {
+    fn render_normal_line(&self, cols: &[String], current: bool, selected: bool, w: &mut impl Write) -> Result<()> {
         if current {
             w.queue(style::SetForegroundColor(
                 style::Color::from_str("green").unwrap(),
@@ -235,7 +235,7 @@ impl Ui {
         Ok(())
     }
 
-    fn render_hinted_line(&self, cols: Vec<String>, hint: String, selected: bool, w: &mut impl Write) -> Result<()> {
+    fn render_hinted_line(&self, cols: &[String], hint: String, selected: bool, w: &mut impl Write) -> Result<()> {
         if selected {
             w.queue(style::Print('+'))?;
         }
@@ -252,7 +252,7 @@ impl Ui {
         Ok(())
     }
 
-    fn print_text(&self, cols: Vec<String>, w: &mut impl Write) -> Result<()> {
+    fn print_text(&self, cols: &[String], w: &mut impl Write) -> Result<()> {
         let mut position = 2;
         for (i, col) in cols.iter().enumerate() {
             w.queue(cursor::MoveToColumn(position))?
@@ -314,7 +314,7 @@ impl Ui {
         }
     }
 
-    pub fn paginate(&mut self, indexes: Vec<usize>) {
+    pub fn paginate(&mut self, indexes: &[usize]) {
         self.pages = Self::calc_pages(indexes, self.page_size);
 
         self.page = 0;
@@ -331,8 +331,8 @@ impl Ui {
         self.align_cursor()
     }
 
-    pub fn page(&self) -> Option<&Vec<usize>> {
-        self.pages.get(self.page)
+    pub fn page(&self) -> Option<&[usize]> {
+        self.pages.get(self.page).map(|p| p.as_slice())
     }
 
     pub fn num_pages(&self) -> usize {
@@ -343,7 +343,7 @@ impl Ui {
         self.page
     }
 
-    fn calc_pages(indexes: Vec<usize>, page_size: usize) -> Vec<Vec<usize>> {
+    fn calc_pages(indexes: &[usize], page_size: usize) -> Vec<Vec<usize>> {
         indexes.chunks(page_size).map(|c| c.to_vec()).collect()
     }
 

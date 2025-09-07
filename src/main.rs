@@ -78,10 +78,10 @@ fn main() {
 }
 
 fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
-    let lines = io::stdin().lines();
+    let lines = io::stdin().lines().map(|l| l.unwrap()).collect::<Vec<String>>();
 
     let mut w = BufWriter::new(io::stderr());
-    let mut picker = Picker::new(lines.map(|l| l.unwrap()).collect(), opts.clone());
+    let mut picker = Picker::new(&lines, opts.clone());
     let mut ui = Ui::new(&picker, opts.clone());
 
     ui.setup(&mut w)?;
@@ -158,16 +158,16 @@ fn run(opts: Options) -> Result<Option<Vec<String>>, Box<dyn Error>> {
                 Command::AddCharToFilter(c) => {
                     ui.push_to_input_buffer(c);
                     let visible = picker.apply_filter(ui.get_input_buffer());
-                    ui.paginate(visible);
+                    ui.paginate(visible.as_slice());
                 }
                 Command::PopCharFromFilter => {
                     ui.pop_from_input_buffer();
                     let visible = picker.apply_filter(ui.get_input_buffer());
-                    ui.paginate(visible);
+                    ui.paginate(visible.as_slice());
                 }
                 Command::DiscardFilter => {
                     let visible = picker.apply_filter(picker.filter_text());
-                    ui.paginate(visible);
+                    ui.paginate(visible.as_slice());
                     ui.change_mode(Mode::Normal);
                 }
                 Command::SaveFilter => {

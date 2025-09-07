@@ -48,21 +48,33 @@ impl Line {
     }
 
     // todo: maybe try to avoid cloning this much
-    fn filter_columns(data: &Vec<String>, columns: &ColumnRange) -> Vec<String> {
-        let indexes = match columns {
+    fn filter_columns(data: &[String], columns: &ColumnRange) -> Vec<String> {
+        match columns {
+            ColumnRange::Closed(range) => {
+                data.iter()
+                    .enumerate()
+                    .filter_map(|(i, s)| range.contains(&i).then(|| s.to_string()))
+                    .collect()
+            },
             ColumnRange::Open(range) => {
-                let mut range = range.clone();
-                let column_cnt = data.len();
-                if let Some(last) = range.last() {
-                    range.extend(last + 1..column_cnt);
+                if range.is_empty() {
+                    return Vec::new();
                 }
 
-                range
-            },
-            ColumnRange::Closed(range) => range.clone(),
-        };
+                let &last = range.last().unwrap();
 
-        data.iter().enumerate().filter_map(|(i, s)| indexes.contains(&i).then(|| s.to_string())).collect()
+                data.iter()
+                    .enumerate()
+                    .filter_map(|(i, s)| {
+                        if i > last || range.contains(&i) {
+                            Some(s.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            }
+        }
     }
 }
 pub struct Picker {
@@ -73,7 +85,7 @@ pub struct Picker {
 }
 
 impl Picker {
-    pub fn new(lines: Vec<String>, opts: Options) -> Self {
+    pub fn new(lines: &[String], opts: Options) -> Self {
         let lines = lines.iter().map(|l| Line::new(l, opts.delimiter.clone())).collect::<Vec<Line>>();
 
         Self {
@@ -101,7 +113,7 @@ impl Picker {
         self.selection.iter().map(|i| self.lines.get(*i).unwrap()).collect::<Vec<&Line>>()
     }
 
-    pub fn lines(&self) -> &Vec<Line> {
+    pub fn lines(&self) -> &[Line] {
         &self.lines
     }
 
