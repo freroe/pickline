@@ -7,8 +7,6 @@ pub enum ColumnRange {
     Open(Vec<usize>),
 }
 
-type SelectionColumn = (usize, String);
-
 #[derive(Clone)]
 pub enum PageSizeOption {
     Auto,
@@ -33,7 +31,7 @@ pub struct Options {
     pub delimiter: Option<String>,
     pub display_columns: Option<ColumnRange>,
     pub output_columns: Option<ColumnRange>,
-    pub selection_column: Option<SelectionColumn>,
+    pub selection_regex: Option<String>,
 }
 
 impl Options {
@@ -49,7 +47,7 @@ impl Options {
                 delimiter: None,
                 display_columns: None,
                 output_columns: None,
-                selection_column: None,
+                selection_regex: None,
             })
         }
         
@@ -57,17 +55,7 @@ impl Options {
 
         let display_columns = matches.get_one::<String>("columns").map(Self::parse_column_ranges);
         let output_columns = matches.get_one::<String>("output-columns").map(Self::parse_column_ranges);
-
-        let selection_column = if matches.contains_id("selection-column") {
-            // todo: changing to get_one::<usize> and remove parse fails - why?
-            let index = matches.get_one::<String>("selection-column").unwrap().parse::<usize>().unwrap();
-            let regex = matches.get_one::<String>("selection-regex").unwrap();
-
-            Some((index, regex.to_string()))
-        } else {
-            None
-        };
-
+        let selection_regex = matches.get_one::<String>("selection-regex").unwrap();
 
         Ok(Self {
             hint_alphabet: hint_alphabet.unwrap(),
@@ -75,7 +63,7 @@ impl Options {
             delimiter: Some(delimiter.to_string()),
             display_columns,
             output_columns,
-            selection_column
+            selection_regex: Some(selection_regex.to_string()),
         })
     }
 

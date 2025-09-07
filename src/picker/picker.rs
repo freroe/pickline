@@ -5,17 +5,18 @@ use regex::Regex;
 // todo: consider having two different types of lines, representing simple and columnar data
 pub struct Line {
     data: Vec<String>,
+    original: String,
 }
 
 impl Line {
     fn new(text: &String, delimiter: Option<String>) -> Self {
         let Some(delim) = delimiter else {
-            return Self { data: vec![text.to_string()] };
+            return Self { data: vec![text.to_string()], original: text.to_string() };
         };
 
         let data = text.split(delim.as_str()).map(|s| s.to_string()).collect::<Vec<String>>();
 
-        Self { data }
+        Self { data, original: text.to_string() }
     }
 
     // todo: maybe this and the `output` method belongs in ui.rs
@@ -40,11 +41,8 @@ impl Line {
         self.data.iter().any(|x| x.contains(s))
     }
 
-    pub fn matches_regex(&self, regex: &Regex, col: usize) -> bool {
-        match self.data.get(col) {
-            None => false,
-            Some(s) => regex.is_match(s),
-        }
+    pub fn matches_regex(&self, regex: &Regex) -> bool {
+        regex.is_match(self.original.as_str())
     }
 
     // todo: maybe try to avoid cloning this much

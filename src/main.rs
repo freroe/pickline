@@ -50,17 +50,10 @@ fn main() {
                 .requires("delimiter")
         )
         .arg(
-            Arg::new("selection-column")
-                .long("selection-col")
-                .help("the column used to determine initial selection (requires -d)")
-                .requires("delimiter")
-        )
-        .arg(
             Arg::new("selection-regex")
                 .long("selection-regex")
-                .help("regex used to determine initial selection (requires --selection-col)")
+                .help("regex used to determine initial selection")
                 .default_value("\\S")
-                .requires("selection-column")
         )
         .get_matches();
 

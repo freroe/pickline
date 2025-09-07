@@ -24,10 +24,8 @@ Options:
           the columns to display (requires -d)
       --output-cols <output-columns>
           the columns to output - will be joined by delimiter (requires -d)
-      --selection-col <selection-column>
-          the column used to determine initial selection (requires -d)
       --selection-regex <selection-regex>
-          regex used to determine initial selection (requires --selection-col) [default: \S]
+          regex used to determine initial selection, first matching line is chosen [default: \S]
   -h, --help
           Print help
   -V, --version
@@ -40,9 +38,11 @@ k or <up>: move cursor up
 j or <down>: move cursor down
 /: enter filter mode
 f: enter hint mode
+F: enter multi hint mode (adding to selection instead of selecting and exiting)
 ]: next page
 [: previous page
-<enter>: pick the current line
+<space>: add the current line to the selection
+<enter>: add the current line to the selection and exit
 <esc> or q: quit
 ```
 

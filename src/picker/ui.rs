@@ -65,9 +65,9 @@ impl Ui {
         }
 
         let mut initial_index = 0;
-        if let Some(selection) = &opts.selection_column {
+        if let Some(selection) = &opts.selection_regex {
             let selected_index = picker.lines().iter().enumerate().find_map(|(i, l)| {
-                match l.matches_regex(&Regex::new(selection.1.as_str()).unwrap(), selection.0) {
+                match l.matches_regex(&Regex::new(selection.as_str()).unwrap()) {
                     true => Some(i),
                     false => None
                 }
